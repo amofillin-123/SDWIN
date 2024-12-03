@@ -5,6 +5,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const copyButton = document.getElementById('copyFiles');
     const scanDateInput = document.getElementById('scanDate');
     const fileList = document.getElementById('fileList');
+    const photoList = document.getElementById('photoList');
+    const videoList = document.getElementById('videoList');
+    const photoCount = document.getElementById('photoCount');
+    const videoCount = document.getElementById('videoCount');
     
     // 存储当前选中的设备路径和选中的文件
     let selectedDevicePath = null;
@@ -120,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function scanDevice(devicePath, scanDate) {
         try {
             // 显示加载状态
-            fileList.innerHTML = `
+            const loadingHtml = `
                 <div class="text-center">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">加载中...</span>
@@ -128,6 +132,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     <p>正在扫描文件...</p>
                 </div>
             `;
+            photoList.innerHTML = loadingHtml;
+            videoList.innerHTML = loadingHtml;
             
             const response = await fetch('/api/scan-device', {
                 method: 'POST',
@@ -147,15 +153,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // 显示文件列表
-            displayFiles([...data.photos, ...data.videos], fileList);
+            displayFiles([...data.photos, ...data.videos]);
             
         } catch (error) {
             console.error('Error scanning device:', error);
-            fileList.innerHTML = `
+            const errorHtml = `
                 <div class="alert alert-danger">
                     扫描文件失败: ${error.message}
                 </div>
             `;
+            photoList.innerHTML = errorHtml;
+            videoList.innerHTML = errorHtml;
         }
     }
     
@@ -167,59 +175,90 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // 显示文件列表
-    function displayFiles(files, listElement) {
-        listElement.innerHTML = '';
+    function displayFiles(files) {
+        const photoList = document.getElementById('photoList');
+        const videoList = document.getElementById('videoList');
+        const photoCount = document.getElementById('photoCount');
+        const videoCount = document.getElementById('videoCount');
         
-        if (files.length === 0) {
-            listElement.innerHTML = `
-                <div class="alert alert-info">
-                    未找到文件
-                </div>
-            `;
-            return;
-        }
+        // 清空现有内容
+        photoList.innerHTML = '';
+        videoList.innerHTML = '';
         
-        const fileContainer = document.createElement('div');
-        fileContainer.className = 'file-container';
+        // 分类文件
+        const photos = [];
+        const videos = [];
         
         files.forEach(file => {
-            const fileElement = document.createElement('div');
-            fileElement.className = 'file-item';
-            
-            // 检查文件类型
-            const isImage = file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|raw|arw)$/);
-            const isVideo = file.name.toLowerCase().match(/\.(mp4|mov|mxf)$/);
-            
-            // 准备缩略图
-            const thumbnailHtml = `<img src="/api/thumbnail/${encodeURIComponent(file.path)}" alt="${file.name}" loading="lazy">`;
-            
-            fileElement.innerHTML = `
-                <div class="thumbnail-container">
-                    ${thumbnailHtml}
-                    ${isVideo ? '<div class="video-overlay">▶</div>' : ''}
-                </div>
-                <div class="file-name">${file.name}</div>
-                <div class="file-info">
-                    <div>${file.date}</div>
-                    <div>${formatFileSize(file.size)}</div>
-                </div>
-            `;
-            
-            // 点击文件选择
-            fileElement.addEventListener('click', () => {
-                fileElement.classList.toggle('selected');
-                if (fileElement.classList.contains('selected')) {
-                    selectedFiles.add(file.path);
-                } else {
-                    selectedFiles.delete(file.path);
-                }
-                updateCopyButton();
-            });
-            
-            fileContainer.appendChild(fileElement);
+            if (file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|raw|arw)$/)) {
+                photos.push(file);
+            } else if (file.name.toLowerCase().match(/\.(mp4|mov|mxf)$/)) {
+                videos.push(file);
+            }
         });
         
-        listElement.appendChild(fileContainer);
+        // 更新计数
+        photoCount.textContent = `${photos.length} 个文件`;
+        videoCount.textContent = `${videos.length} 个文件`;
+        
+        // 显示照片
+        photos.forEach(file => {
+            const fileElement = createFileElement(file);
+            photoList.appendChild(fileElement);
+        });
+        
+        // 显示视频
+        videos.forEach(file => {
+            const fileElement = createFileElement(file);
+            videoList.appendChild(fileElement);
+        });
+        
+        // 如果没有文件，显示提示
+        if (photos.length === 0) {
+            photoList.innerHTML = '<div class="alert alert-info">没有找到照片</div>';
+        }
+        if (videos.length === 0) {
+            videoList.innerHTML = '<div class="alert alert-info">没有找到视频</div>';
+        }
+    }
+    
+    // 创建文件元素
+    function createFileElement(file) {
+        const fileElement = document.createElement('div');
+        fileElement.className = 'file-item';
+        
+        // 检查文件类型
+        const isVideo = file.name.toLowerCase().match(/\.(mp4|mov|mxf)$/);
+        
+        // 准备缩略图
+        const thumbnailHtml = `<img src="/api/thumbnail/${encodeURIComponent(file.path)}" alt="${file.name}" loading="lazy">`;
+        
+        fileElement.innerHTML = `
+            <div class="thumbnail-container">
+                ${thumbnailHtml}
+                ${isVideo ? '<div class="video-overlay">▶</div>' : ''}
+            </div>
+            <div class="file-info-container">
+                <div class="file-name">${file.name}</div>
+                <div class="file-info">
+                    <span>${file.date}</span>
+                    <span class="file-size">${formatFileSize(file.size)}</span>
+                </div>
+            </div>
+        `;
+        
+        // 点击文件选择
+        fileElement.addEventListener('click', () => {
+            fileElement.classList.toggle('selected');
+            if (fileElement.classList.contains('selected')) {
+                selectedFiles.add(file.path);
+            } else {
+                selectedFiles.delete(file.path);
+            }
+            updateCopyButton();
+        });
+        
+        return fileElement;
     }
     
     // 更新复制按钮状态
