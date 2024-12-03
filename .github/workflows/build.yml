@@ -30,7 +30,7 @@ jobs:
         pyinstaller --noconfirm --clean --add-data "templates;templates" --add-data "static;static" --name "SD卡文件拷贝工具" --icon "static/favicon.ico" --windowed app.py
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v2
+      uses: uses: actions/upload-artifact@v3
       with:
         name: SD卡文件拷贝工具-Windows
         path: dist/SD卡文件拷贝工具
