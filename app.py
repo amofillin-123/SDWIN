@@ -248,6 +248,54 @@ def copy_files():
     
     return jsonify(result)
 
+@app.route('/api/create-folder-and-copy', methods=['POST'])
+def create_folder_and_copy():
+    """创建文件夹并复制文件"""
+    try:
+        data = request.json
+        folder_name = data.get('folderName')
+        file_paths = data.get('filePaths', [])
+        
+        if not folder_name or not file_paths:
+            return jsonify({"error": "缺少必要参数"}), 400
+            
+        # 在桌面创建文件夹
+        desktop_path = os.path.expanduser("~/Desktop")
+        target_folder = os.path.join(desktop_path, folder_name)
+        
+        # 如果文件夹已存在，添加数字后缀
+        original_folder = target_folder
+        counter = 1
+        while os.path.exists(target_folder):
+            target_folder = f"{original_folder}_{counter}"
+            counter += 1
+        
+        # 创建文件夹
+        os.makedirs(target_folder)
+        
+        # 复制文件
+        copied_files = []
+        for file_path in file_paths:
+            if os.path.exists(file_path):
+                file_name = os.path.basename(file_path)
+                target_path = os.path.join(target_folder, file_name)
+                try:
+                    with open(file_path, 'rb') as src, open(target_path, 'wb') as dst:
+                        dst.write(src.read())
+                    copied_files.append(file_name)
+                except Exception as e:
+                    print(f"Error copying file {file_path}: {str(e)}")
+        
+        return jsonify({
+            "success": True,
+            "message": f"已创建文件夹并复制了 {len(copied_files)} 个文件",
+            "folderPath": target_folder,
+            "copiedFiles": copied_files
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/thumbnail/<path:file_path>')
 def get_thumbnail(file_path):
     """获取文件的缩略图"""
@@ -264,6 +312,29 @@ def get_thumbnail(file_path):
             return send_file(thumb_io, mimetype='image/jpeg')
         else:
             return jsonify({"error": "不支持的文件类型"}), 400
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/open-file-location', methods=['POST'])
+def open_file_location():
+    """打开文件所在位置"""
+    try:
+        data = request.json
+        file_path = data.get('filePath')
+        
+        if not file_path or not os.path.exists(file_path):
+            return jsonify({"error": "文件不存在"}), 404
+            
+        # 获取文件所在目录
+        dir_path = os.path.dirname(file_path)
+        
+        # 在 macOS 上使用 open 命令打开 Finder
+        if platform.system() == "Darwin":
+            os.system(f'open -R "{file_path}"')
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "不支持的操作系统"}), 400
             
     except Exception as e:
         return jsonify({"error": str(e)}), 500
